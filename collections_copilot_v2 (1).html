@@ -1,0 +1,71 @@
+<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Collections Copilot v2</title><style>
+:root{--bg:#f3f6fd;--fg:#14213d;--mut:#5b6784;--ln:#e1e7f5;--ac:#5b3df5;--card:#fff;--bar:#bfe9d6;--sh:0 6px 20px rgba(60,70,140,.12);box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0b1020;--fg:#e8ecff;--mut:#98a3c7;--ln:#27304f;--ac:#8b7bff;--card:#151c33;--bar:#1d5c49;--sh:0 6px 20px rgba(0,0,0,.4)}}
+:root[data-theme=dark]{--bg:#0b1020;--fg:#e8ecff;--mut:#98a3c7;--ln:#27304f;--ac:#8b7bff;--card:#151c33;--bar:#1d5c49;--sh:0 6px 20px rgba(0,0,0,.4)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}body{font:14px 'Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--fg);margin:0;padding:14px;max-width:1080px;margin-inline:auto}
+.hero{background:linear-gradient(120deg,#5b3df5,#2f80ed 55%,#00c2a8);color:#fff;border-radius:16px;padding:20px 22px;box-shadow:var(--sh);margin-bottom:12px}
+.hero h2{margin:0 0 4px;font-size:22px}.hero small{color:#e6ecff;opacity:.9}.live{display:inline-block;width:9px;height:9px;border-radius:50%;background:#7dffb2;box-shadow:0 0 0 4px rgba(125,255,178,.3);margin-right:8px}
+#kp{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:10px 0}
+.k{background:var(--card);border-radius:14px;padding:14px 16px;box-shadow:var(--sh);border-top:4px solid #5b3df5}.k:nth-child(2){border-color:#00b894}.k:nth-child(3){border-color:#f39c12}.k b{display:block;font-size:24px;margin-bottom:2px}
+.box{background:var(--card);border:1px solid var(--ln);border-radius:14px;padding:14px;margin:12px 0;box-shadow:var(--sh)}
+select,input{padding:8px 10px;border:1px solid var(--ln);border-radius:10px;background:var(--bg);color:var(--fg);font:inherit;margin:3px}
+button{padding:8px 14px;border:0;border-radius:10px;background:linear-gradient(120deg,#5b3df5,#2f80ed);color:#fff;font:inherit;cursor:pointer;margin:3px;box-shadow:0 3px 10px rgba(91,61,245,.35)}button:hover{filter:brightness(1.1)}
+h3{margin:18px 0 6px}.w{overflow-x:auto;background:var(--card);border-radius:14px;box-shadow:var(--sh)}table{border-collapse:collapse;width:100%}
+th{position:sticky;top:0;background:linear-gradient(120deg,#5b3df5,#2f80ed);color:#fff;font-weight:600}td,th{padding:9px 10px;text-align:left;white-space:nowrap}td{border-bottom:1px solid var(--ln)}tbody tr:nth-child(even){background:rgba(91,61,245,.05)}tbody tr:hover{background:rgba(0,194,168,.12)}
+.n{text-align:right}small,.mut{color:var(--mut)}.m{white-space:pre-wrap;max-width:520px}
+.bd{padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;color:#fff}.bToken{background:#f39c12}.bEMI{background:#2f80ed}.bOther{background:#8a94b3}</style></head><body>
+<div class=hero><h2><span class=live></span>Collections &amp; Conversion Copilot</h2><small>Upload any Excel/CSV, get today's priority calls, send them to n8n</small></div>
+<div class=box><b>1. Upload</b> (.xlsx, .xls, .csv): <input type=file id=f accept=".xlsx,.xls,.csv"> <select id=sh></select>
+<label><input type=checkbox id=today> count days to today (default: latest date in file)</label><br><small>The file is read in your browser; nothing is uploaded anywhere until you press Send to n8n.</small></div>
+<div class=box id=mapbox style="display:none"><b>2. Check column mapping</b> (auto-detected; change if wrong)<div id=map></div></div>
+<div id=qc class=mut></div><div id=kp></div>
+<h3>Call list</h3><p>Executive: <select id=sp></select> <button id=cp>Copy list</button></p>
+<div class=w><table><thead><tr><th>#</th><th>Customer</th><th>Executive</th><th>Stage</th><th class=n>Due</th><th class=n>Days</th><th class=n>Chance</th><th class=n>Expected</th><th>Next action</th><th>Draft</th></tr></thead><tbody id=tb></tbody></table></div>
+<div class=box><b>3. Send to n8n</b><br><input id=wh size=44 placeholder="https://your-n8n.example.com/webhook/collections-copilot"> <input id=sec type=password placeholder="shared secret">
+<button id=send>Send to n8n</button> <button id=cj>Copy JSON</button> <span id=st class=mut></span>
+<br><small>Sends the top calls per executive. Customer details leave this page, so use only your own HTTPS n8n and get consent/legal sign-off. A secret typed into a browser page is a deterrent only. Hosted-preview pages block outside requests: use Copy JSON there, or host this file on Netlify/Vercel for Send to work.</small></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+const $=i=>document.getElementById(i),KEYS={name:['customer','client','name'],sp:['executive','salesperson','d.o','officer','agent','team','sales rep'],due:['due','balance','outstanding','remaining','baki'],price:['sales price','price','total amount','value'],paid:['deposit','paid','collected','received'],stage:['status','stage','bking','emi','type'],date:['last deposit','last paid','last pay','last','date'],phone:['phone','mobile','contact']},
+LBL={name:'Customer',sp:'Executive',due:'Amount due',price:'Total price',paid:'Paid so far',stage:'Stage/status',date:'Last payment date',phone:'Phone'};
+let wb,hdr=[],rows=[],out=[],M={};
+const num=v=>{if(typeof v==='number')return v;const x=parseFloat(String(v??'').replace(/[,\s৳]|BDT/gi,''));return isNaN(x)?null:x},
+dt=v=>{if(v instanceof Date)return v;const s=String(v??'').trim(),a=s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$/);if(a){const y=+a[3]<100?2000+ +a[3]:+a[3];return new Date(y,a[2]-1,+a[1])}const d=new Date(s);return isNaN(d)||!s?null:d},
+fm=x=>Math.round(x).toLocaleString();
+$('f').onchange=async e=>{const fl=e.target.files[0];if(!fl)return;try{if(/\.csv$/i.test(fl.name)){wb={SheetNames:['CSV'],aoa:csv(await fl.text())}}else{if(typeof XLSX==='undefined'){$('qc').textContent='The Excel reader could not load (it needs internet access to cdnjs.cloudflare.com). Save your sheet as .csv and upload that instead.';return}wb=XLSX.read(await fl.arrayBuffer(),{cellDates:true})}$('sh').innerHTML=wb.SheetNames.map((n,i)=>'<option value='+i+'>'+n.replace(/</g,'&lt;')+'</option>').join('');load()}catch(x){$('qc').textContent='Could not read this file: '+x.message}};
+function csv(t){const r=[];let row=[],c='',q=false;for(let i=0;i<t.length;i++){const ch=t[i];if(q){if(ch=='"'){if(t[i+1]=='"'){c+='"';i++}else q=false}else c+=ch}else if(ch=='"')q=true;else if(ch==','){row.push(c);c=''}else if(ch=='\n'||ch=='\r'){if(ch=='\r'&&t[i+1]=='\n')i++;row.push(c);r.push(row);row=[];c=''}else c+=ch}row.push(c);r.push(row);return r.map(x=>x.map(v=>v===''?null:v))}
+$('sh').onchange=load;$('today').onchange=run;
+function load(){const a=wb.aoa||XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[$('sh').value]],{header:1,raw:true,defval:null}),h=a.findIndex(r=>r.filter(c=>typeof c==='string'&&c.trim()).length>=3);
+if(h<0){$('qc').textContent='No header row found in this sheet. Try another sheet.';return}
+hdr=a[h].map((c,i)=>String(c??'col'+(i+1)).trim());rows=a.slice(h+1).filter(r=>r.some(c=>c!==null));
+$('mapbox').style.display='';$('map').innerHTML=Object.keys(KEYS).map(k=>{let best=-1,bs=99;hdr.forEach((c,i)=>{KEYS[k].forEach((w,j)=>{if(c.toLowerCase().includes(w)&&j<bs){bs=j;best=i}})});
+return '<label>'+LBL[k]+': <select id=m_'+k+'><option value="">(none)</option>'+hdr.map((c,i)=>'<option value='+i+(i===best?' selected':'')+'>'+c.replace(/</g,'&lt;')+'</option>').join('')+'</select></label> '}).join('');
+Object.keys(KEYS).forEach(k=>$('m_'+k).onchange=run);run()}
+function run(){Object.keys(KEYS).forEach(k=>M[k]=$('m_'+k).value);const g=(r,k)=>M[k]===''?null:r[+M[k]],q={read:0,skipPaid:0,noName:0,noDue:0,dup:0};
+let L=[];rows.forEach(r=>{const nm=g(r,'name');if(typeof nm==='string'&&/^total/i.test(nm.trim()))return;q.read++;if(!nm){q.noName++;return}
+let due=num(g(r,'due'));if(due===null){const p=num(g(r,'price')),d=num(g(r,'paid'));if(p!==null)due=p-(d||0)}
+const st=String(g(r,'stage')??''),stage=/full|complete|closed/i.test(st)?'Full Paid':/emi|install/i.test(st)?'EMI':/token|book/i.test(st)?'Token':'Other';
+if(due===null){q.noDue++;return}if(due<=0||stage==='Full Paid'){q.skipPaid++;return}L.push({name:String(nm),sp:String(g(r,'sp')??'Unassigned'),phone:g(r,'phone'),stage,due,d:dt(g(r,'date'))})});
+const seen=new Set();L=L.filter(x=>{const k=x.name.toLowerCase()+'|'+(x.phone||'')+'|'+x.due;if(seen.has(k)){q.dup++;return false}seen.add(k);return true});
+const ds=L.map(x=>x.d).filter(Boolean),asof=$('today').checked?new Date():new Date(Math.max(...ds,0));
+out=L.map(x=>{const days=x.d?Math.round((asof-x.d)/864e5):null,rec=days===null?.6:days<=7?1:days<=21?.8:days<=45?.6:.4,p=+({EMI:.7,Token:.35}[x.stage]*1||.3).toFixed(2),c=+(p*rec).toFixed(2),
+act=x.stage==='Token'?'Convert token to booking: ask for booking payment':x.stage==='EMI'?'EMI reminder: confirm next instalment date':'Follow up: confirm payment plan',
+en='Dear '+x.name+', thank you for choosing us. '+(x.stage==='Token'?'To confirm your booking, the next step is the booking payment':'A friendly reminder about your payment')+' (balance due BDT '+fm(x.due)+'). Please tell me a convenient date and I will help. Reply STOP to opt out.',
+bn='আসসালামু আলাইকুম '+x.name+', আপনার বকেয়া ৳'+fm(x.due)+'। সুবিধামতো দিনটি জানালে আমি সহায়তা করব। বার্তা বন্ধ করতে STOP লিখুন।';
+return{...x,days,p:c,exp:Math.round(x.due*c),act,en,bn}}).sort((a,b)=>b.exp-a.exp);
+$('qc').textContent='Rows read '+q.read+' | in call list '+out.length+' | skipped: paid/zero '+q.skipPaid+', no customer name '+q.noName+', amount not computable '+q.noDue+', duplicates '+q.dup+(ds.length?' | days counted to '+asof.toISOString().slice(0,10):' | no date column mapped');
+$('kp').innerHTML=[[fm(out.reduce((s,x)=>s+x.due,0)),'BDT due, '+out.length+' open accounts'],[fm(out.reduce((s,x)=>s+x.exp,0)),'BDT expected (rule-based chances)'],[fm(out.slice(0,20).reduce((s,x)=>s+x.exp,0)),'BDT expected from top 20 calls']].map(a=>'<div class=k><b>'+a[0]+'</b><br>'+a[1]+'</div>').join('');
+$('sp').innerHTML='<option value="">All</option>'+[...new Set(out.map(x=>x.sp))].sort().map(s=>'<option>'+s.replace(/</g,'&lt;')+'</option>').join('');draw()}
+const td=(t,c)=>{const e=document.createElement('td');e.textContent=t;if(c)e.className=c;return e},cur=()=>out.filter(x=>!$('sp').value||x.sp===$('sp').value).slice(0,60);
+function draw(){const tb=$('tb');tb.replaceChildren();cur().forEach((x,i)=>{const tr=tb.insertRow();[i+1,x.name,x.sp].forEach(v=>tr.appendChild(td(v)));{const s=td('');const b=document.createElement('span');b.className='bd b'+x.stage.replace(' ','');b.textContent=x.stage;s.appendChild(b);tr.appendChild(s)}[fm(x.due),x.days??'-'].forEach(v=>tr.appendChild(td(v,'n')));{const q=Math.round(x.p*100),c=td(q+'%','n');c.style.background='linear-gradient(90deg,var(--bar) '+q+'%,transparent '+q+'%)';tr.appendChild(c)}tr.appendChild(td(fm(x.exp),'n'));tr.appendChild(td(x.act));
+const c=tr.insertCell(),d=document.createElement('details'),s=document.createElement('summary'),p=document.createElement('div');s.textContent='Show';p.className='m';p.textContent=x.en+'\n\n'+x.bn;d.append(s,p);c.appendChild(d)})}
+$('sp').onchange=draw;
+function cp(t,b){const a=document.createElement('textarea');a.value=t;document.body.append(a);a.select();try{document.execCommand('copy');b.textContent='Copied'}catch(e){}a.remove()}
+$('cp').onclick=e=>cp(cur().map((x,i)=>(i+1)+'. '+x.name+' | due '+fm(x.due)+' | '+x.act).join('\n'),e.target);
+function payload(){const by={};out.slice(0,300).forEach(x=>(by[x.sp]??=[]).push({customer:x.name,phone:x.phone,due:x.due,stage:x.stage,days:x.days,expected:x.exp,action:x.act,message_en:x.en,message_bn:x.bn}));
+return JSON.stringify({generated:new Date().toISOString(),executives:Object.entries(by).map(([e,l])=>({executive:e,calls:l.slice(0,30)}))})}
+$('cj').onclick=e=>cp(payload(),e.target);
+$('send').onclick=async()=>{const u=$('wh').value.trim();if(!/^https:\/\//.test(u)){$('st').textContent='Enter an https webhook URL';return}if(!out.length){$('st').textContent='Upload a file first';return}
+try{const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json','X-Copilot-Secret':$('sec').value},body:payload()});$('st').textContent=r.ok?'Sent ('+r.status+')':'n8n replied '+r.status}catch(e){$('st').textContent='Failed: check the URL and CORS (Allowed Origins in the Webhook node)'}};
+</script></body></html>
